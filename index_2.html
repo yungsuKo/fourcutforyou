@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>인생네컷 웹캠</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Tailwind CDN (필요 없으면 제거 가능) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+      /* 인생네컷 스트립 비율: 세로가 긴 1:3 정도 */
+      #stripCanvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      /* B&W 모드일 때 적용될 전역 필터 */
+      .bw-mode video,
+      .bw-mode .captured-thumbnail {
+        filter: grayscale(1);
+      }
+
+      /* 카운트다운 애니메이션용 */
+      #countdownOverlay {
+        transition: opacity 0.2s ease;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50">
+    <div id="root">
+      <div class="w-full h-full">
+        <div
+          class="h-[100dvh] w-full flex flex-col items-center justify-start p-5 gap-4 md:gap-8 lg:gap-12 overflow-auto"
+        >
+          <!-- 상단 라이트박스 그림 -->
+          <div
+            class="relative w-full flex m-0 p-0 max-w-full sm:max-w-md md:max-w-lg lg:max-w-2xl aspect-[3/1] overflow-auto"
+          >
+            <img
+              class="w-full h-full object-contain"
+              alt="Lightbox"
+              src="/drawings/inside/lightbox3.svg"
+            />
+          </div>
+
+          <!-- 가운데 본체 (화면 + 버튼) -->
+          <div
+            class="relative flex items-center justify-center w-full max-w-full"
+          >
+            <div
+              class="relative aspect-[3/4] w-full max-w-[12rem] md:max-w-3xs lg:max-w-xs flex items-center justify-center"
+            >
+              <!-- 왼쪽 눈높이 가이드 -->
+              <div
+                class="absolute left-[-4rem] md:left-[-5rem] lg:left-[-6rem] top-[30%] flex items-start justify-end z-20 max-[350px]:hidden"
+              >
+                <img
+                  class="w-[3rem] md:w-[4rem] lg:w-[5rem] h-auto object-contain"
+                  alt="Eye level arrow"
+                  src="/drawings/inside/eyeLevel3.svg"
+                />
+              </div>
+
+              <!-- 본체 화면 외곽 -->
+              <img
+                class="absolute inset-0 w-full h-full object-contain z-0"
+                alt="Screen"
+                src="/drawings/inside/screen3.svg"
+              />
+
+              <!-- 오른쪽 가격 스티커 -->
+              <div
+                class="absolute right-[-4.5rem] md:right-[-7rem] lg:right-[-8rem] bottom-[10%] flex items-end justify-start z-20 max-[350px]:hidden"
+              >
+                <img
+                  class="w-[4rem] md:w-[5rem] lg:w-[6rem] h-auto object-contain"
+                  alt="Price sticker"
+                  src="/drawings/inside/priceSticker3.svg"
+                />
+              </div>
+
+              <!-- 실제 카메라/버튼 들어가는 영역 -->
+              <div
+                class="relative w-[82%] h-[82%] flex items-center justify-center"
+              >
+                <div
+                  class="w-full h-full flex flex-col items-center justify-between gap-3 sm:gap-4 lg:gap-6 p-4 sm:p-6 lg:p-8"
+                >
+                  <!-- 비디오 프리뷰 영역 -->
+                  <div
+                    class="relative w-full flex-1 bg-black/80 rounded-xl overflow-hidden flex items-center justify-center"
+                  >
+                    <video
+                      id="video"
+                      autoplay
+                      playsinline
+                      class="w-full h-full object-cover"
+                    ></video>
+
+                    <!-- 단일 컷 캡처용 숨겨진 캔버스 -->
+                    <canvas id="captureCanvas" class="hidden"></canvas>
+
+                    <!-- 카운트다운 숫자 표시 -->
+                    <div
+                      id="countdownOverlay"
+                      class="absolute inset-0 flex items-center justify-center text-white text-5xl font-bold bg-black/40 opacity-0 pointer-events-none"
+                    ></div>
+                  </div>
+
+                  <!-- 하단 버튼 영역 -->
+                  <div
+                    class="w-full flex flex-col items-center justify-center gap-2 sm:gap-3 lg:gap-4 mt-2"
+                  >
+                    <!-- 사진 촬영 버튼 -->
+                    <button
+                      id="takePhotoBtn"
+                      class="w-full max-w-[240px] sm:max-w-xs lg:max-w-sm px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3 bg-gray-100 border-2 md:border-3 lg:border-3 border-gray-800 text-gray-800 hover:bg-gray-900 hover:text-white text-xs sm:text-sm lg:text-base font-medium transition-colors touch-manipulation flex items-center justify-center gap-1.5"
+                    >
+                      take photo
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="w-4 h-4 transform transition-transform group-hover:translate-x-1"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"
+                        ></path>
+                        <circle cx="12" cy="13" r="4"></circle>
+                      </svg>
+                    </button>
+
+                    <!-- 업로드 버튼 (라벨 + 숨겨진 input) -->
+                    <label
+                      for="uploadInput"
+                      class="w-full max-w-[240px] sm:max-w-xs lg:max-w-sm px-3 py-2 sm:px-4 sm:py-2.5 lg:px-6 lg:py-3 bg-gray-100 border-2 md:border-3 lg:border-3 border-gray-800 text-gray-800 hover:bg-gray-900 hover:text-white text-xs sm:text-sm lg:text-base font-medium transition-colors touch-manipulation flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      upload photo
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="w-4 h-4 transform transition-transform group-hover:translate-x-1"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+                        ></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                      </svg>
+                    </label>
+                    <input
+                      type="file"
+                      id="uploadInput"
+                      accept="image/*"
+                      class="hidden"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- B&W 토글 -->
+          <div
+            class="transform flex items-center justify-center gap-4 -my-2 md:-my-4 lg:-my-6"
+          >
+            <h1
+              class="text-sm mr-1 md:text-base lg:text-xl font-medium transition-colors duration-300"
+            >
+              b&w
+            </h1>
+            <button
+              id="bwToggleBtn"
+              type="button"
+              class="flex items-center justify-center p-2 rounded-full transition-colors duration-200 border border-transparent"
+            >
+              <div class="flex flex-col">
+                <img
+                  class="w-8 md:w-13 lg:w-15 h-auto rounded-full transition-colors duration-300 -translate-x-2 md:-translate-x-3 lg:-translate-x-3"
+                  alt="BW Mode"
+                  src="/drawings/inside/toggles/toggleBW3.svg"
+                />
+              </div>
+            </button>
+            <h1
+              class="text-sm md:text-base lg:text-xl font-medium transition-colors duration-300"
+            >
+              color
+            </h1>
+          </div>
+
+          <!-- 인생네컷 스트립 프리뷰 & 다운로드 -->
+          <div
+            class="flex flex-col items-center justify-center w-full max-w-full sm:max-w-md md:max-w-lg lg:max-w-2xl mt-4 gap-4"
+          >
+            <div class="w-full max-w-xs sm:max-w-sm md:max-w-md">
+              <div
+                class="bg-white border-4 border-gray-800 rounded-2xl p-3 flex flex-col items-center gap-3"
+              >
+                <div
+                  class="w-full aspect-[1/3] bg-gray-100 flex items-center justify-center overflow-hidden rounded-xl"
+                >
+                  <canvas id="stripCanvas"></canvas>
+                </div>
+                <p class="text-[11px] sm:text-xs text-gray-500 text-center">
+                  최대 4장까지 촬영 또는 업로드 후,
+                  <br />
+                  아래 다운로드 버튼으로 인생네컷 이미지를 저장할 수 있어요.
+                </p>
+                <div class="flex gap-2">
+                  <button
+                    id="downloadStripBtn"
+                    class="px-3 py-1.5 text-xs sm:text-sm rounded-full border border-gray-800 bg-gray-900 text-white disabled:bg-gray-300 disabled:border-gray-300"
+                    disabled
+                  >
+                    다운로드
+                  </button>
+                  <button
+                    id="resetStripBtn"
+                    class="px-3 py-1.5 text-xs sm:text-sm rounded-full border border-gray-300 bg-white hover:bg-gray-100"
+                  >
+                    초기화
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 개별 컷 썸네일 (선택사항) -->
+            <div
+              id="thumbnails"
+              class="flex flex-row gap-2 flex-wrap justify-center"
+            ></div>
+          </div>
+
+          <!-- 하단 안내/코인패널 (원래 코드 유지) -->
+          <div
+            class="flex items-start justify-center gap-4 w-full max-w-full sm:max-w-md md:max-w-lg lg:max-w-2xl"
+          >
+            <div class="flex-1 relative border-gray-800 mt-8 gap-1 sm:gap-2">
+              <img
+                class="w-full h-auto"
+                alt="Instructions"
+                src="/drawings/inside/instructions/instructions3.svg"
+              />
+            </div>
+            <div>
+              <div
+                class="flex flex-col items-center justify-center mb-0 md:mb-1 lg:mb-2 mt-8"
+              >
+                <h1
+                  class="text-md md:text-xl lg:text-2xl font-medium transition-opacity duration-300 opacity-0"
+                ></h1>
+              </div>
+              <div class="relative flex-shrink-0 w-15 md:w-20 lg:w-25">
+                <img
+                  class="w-full h-full object-contain"
+                  alt="Coin Panel"
+                  src="/drawings/inside/coin/coinPanel3.svg"
+                />
+                <div
+                  class="absolute inset-0 flex flex-col items-center justify-between py-[30%]"
+                >
+                  <button
+                    class="border-3 border-gray-800 w-5 h-5 md:w-6 md:h-6 lg:w-6 lg:h-6 rounded-full flex items-center justify-center text-center text-xs transition-all"
+                  >
+                    <span
+                      class="w-full h-full rounded-full bg-red-500 hover:bg-red-600 animate-pulse"
+                    ></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- /h-[100dvh] -->
+      </div>
+      <!-- /w-full h-full -->
+    </div>
+    <!-- /root -->
+
+    <script>
+      // --- 상태 값 ---
+      const video = document.getElementById('video');
+      const captureCanvas = document.getElementById('captureCanvas');
+      const stripCanvas = document.getElementById('stripCanvas');
+      const takePhotoBtn = document.getElementById('takePhotoBtn');
+      const uploadInput = document.getElementById('uploadInput');
+      const bwToggleBtn = document.getElementById('bwToggleBtn');
+      const downloadStripBtn = document.getElementById('downloadStripBtn');
+      const resetStripBtn = document.getElementById('resetStripBtn');
+      const thumbnailsContainer = document.getElementById('thumbnails');
+      const countdownOverlay = document.getElementById('countdownOverlay');
+
+      const MAX_SHOTS = 4;
+      let capturedImages = []; // { image: HTMLImageElement, isBW: boolean }
+      let isBWMode = false;
+      let stream = null;
+
+      // --- 웹캠 시작 ---
+      async function startCamera() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          alert('이 브라우저에서는 웹캠을 지원하지 않습니다.');
+          return;
+        }
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+            audio: false,
+          });
+          video.srcObject = stream;
+        } catch (err) {
+          console.error('카메라 접근 실패:', err);
+          alert('카메라 접근 권한을 허용해 주세요.');
+        }
+      }
+
+      // --- 단일 프레임 캡처 (웹캠 -> canvas -> dataURL) ---
+      function captureFrameFromVideo() {
+        if (!video.videoWidth || !video.videoHeight) {
+          console.warn('비디오가 아직 준비되지 않았습니다.');
+          return null;
+        }
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+
+        captureCanvas.width = width;
+        captureCanvas.height = height;
+        const ctx = captureCanvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, width, height);
+
+        if (isBWMode) {
+          applyGrayscale(ctx, width, height);
+        }
+
+        return captureCanvas.toDataURL('image/png');
+      }
+
+      // --- 업로드 이미지 캡처 (file -> img -> canvas) ---
+      function captureFrameFromFile(file, callback) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const img = new Image();
+          img.onload = function () {
+            const targetWidth = img.width;
+            const targetHeight = img.height;
+
+            captureCanvas.width = targetWidth;
+            captureCanvas.height = targetHeight;
+            const ctx = captureCanvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+            if (isBWMode) {
+              applyGrayscale(ctx, targetWidth, targetHeight);
+            }
+
+            const dataURL = captureCanvas.toDataURL('image/png');
+            callback(dataURL);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // --- 흑백 변환 (캔버스 픽셀 조작) ---
+      function applyGrayscale(ctx, width, height) {
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+          data[i] = data[i + 1] = data[i + 2] = gray;
+        }
+        ctx.putImageData(imageData, 0, 0);
+      }
+
+      // --- 캡처된 이미지 배열에 추가 + UI 업데이트 ---
+      function addCapturedImage(dataURL) {
+        if (!dataURL) return;
+        if (capturedImages.length >= MAX_SHOTS) {
+          alert(
+            '최대 ' +
+              MAX_SHOTS +
+              '장까지 촬영할 수 있습니다. 초기화 후 다시 시도해 주세요.'
+          );
+          return;
+        }
+
+        const img = new Image();
+        img.onload = () => {
+          capturedImages.push({ image: img, isBW: isBWMode });
+          renderThumbnails();
+          renderStrip();
+          updateButtonsState();
+        };
+        img.src = dataURL;
+      }
+
+      // --- 썸네일 렌더링 ---
+      function renderThumbnails() {
+        thumbnailsContainer.innerHTML = '';
+        capturedImages.forEach((item, index) => {
+          const thumb = document.createElement('img');
+          thumb.src = item.image.src;
+          thumb.className =
+            'captured-thumbnail w-16 h-24 object-cover rounded-lg border border-gray-300';
+          thumb.title = '컷 ' + (index + 1);
+          thumbnailsContainer.appendChild(thumb);
+        });
+      }
+
+      // --- 인생네컷 스트립 렌더링 ---
+      function renderStrip() {
+        const stripWidth = 600;
+        const stripHeight = 1800; // 1:3 비율
+        stripCanvas.width = stripWidth;
+        stripCanvas.height = stripHeight;
+
+        const ctx = stripCanvas.getContext('2d');
+
+        // 배경 흰색
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, stripWidth, stripHeight);
+
+        if (capturedImages.length === 0) {
+          // 비어있을 때 가이드 텍스트
+          ctx.fillStyle = '#9ca3af';
+          ctx.font = '24px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('사진을 찍어보세요!', stripWidth / 2, stripHeight / 2);
+          return;
+        }
+
+        const marginTop = 80;
+        const marginBottom = 80;
+        const verticalGap = 40;
+        const availableHeight =
+          stripHeight -
+          marginTop -
+          marginBottom -
+          verticalGap * (MAX_SHOTS - 1);
+        const frameHeight = availableHeight / MAX_SHOTS;
+        const frameWidth = stripWidth * 0.8;
+        const left = (stripWidth - frameWidth) / 2;
+
+        for (let i = 0; i < MAX_SHOTS; i++) {
+          const top = marginTop + i * (frameHeight + verticalGap);
+
+          // 프레임 그리기(연한 회색)
+          ctx.strokeStyle = '#e5e7eb';
+          ctx.lineWidth = 8;
+          ctx.strokeRect(left, top, frameWidth, frameHeight);
+
+          if (i < capturedImages.length) {
+            const { image } = capturedImages[i];
+
+            // 이미지 비율 유지하여 중앙 배치
+            const imageRatio = image.width / image.height;
+            const frameRatio = frameWidth / frameHeight;
+
+            let drawWidth, drawHeight;
+            if (imageRatio > frameRatio) {
+              // 이미지가 더 가로로 김
+              drawWidth = frameWidth;
+              drawHeight = frameWidth / imageRatio;
+            } else {
+              drawHeight = frameHeight;
+              drawWidth = frameHeight * imageRatio;
+            }
+
+            const dx = left + (frameWidth - drawWidth) / 2;
+            const dy = top + (frameHeight - drawHeight) / 2;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(left, top, frameWidth, frameHeight);
+            ctx.clip();
+            ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
+            ctx.restore();
+          }
+        }
+      }
+
+      // --- 버튼 상태 업데이트 ---
+      function updateButtonsState() {
+        downloadStripBtn.disabled = capturedImages.length === 0;
+      }
+
+      // --- 스트립 다운로드 ---
+      function downloadStrip() {
+        if (capturedImages.length === 0) return;
+        const link = document.createElement('a');
+        link.href = stripCanvas.toDataURL('image/png');
+        link.download = 'lifefourcut.png';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      // --- 전체 초기화 ---
+      function resetAll() {
+        capturedImages = [];
+        renderThumbnails();
+        renderStrip();
+        updateButtonsState();
+      }
+
+      // --- B&W 토글 ---
+      function toggleBWMode() {
+        isBWMode = !isBWMode;
+        document.body.classList.toggle('bw-mode', isBWMode);
+
+        // 시각적 강조 (테두리 색 변경 등)
+        if (isBWMode) {
+          bwToggleBtn.classList.add('border-gray-800', 'bg-gray-100');
+        } else {
+          bwToggleBtn.classList.remove('border-gray-800', 'bg-gray-100');
+        }
+
+        // 이미 캡처한 이미지까지 실시간으로 바꾸는 건 아니고,
+        // 새로운 캡처/업로드부터 흑백 적용.
+        // (원하면 여기서 다시 렌더링 로직을 돌려도 됨)
+        renderStrip();
+      }
+
+      // --- 카운트다운 후 촬영 ---
+      async function countdownAndCapture() {
+        if (capturedImages.length >= MAX_SHOTS) {
+          alert(
+            '이미 ' +
+              MAX_SHOTS +
+              '장을 촬영했습니다. 초기화 후 다시 시도해 주세요.'
+          );
+          return;
+        }
+
+        let count = 3;
+        countdownOverlay.style.opacity = '1';
+
+        const doTick = () =>
+          new Promise((resolve) => {
+            countdownOverlay.textContent = count;
+            setTimeout(() => {
+              count--;
+              if (count > 0) {
+                resolve(doTick());
+              } else {
+                resolve();
+              }
+            }, 800);
+          });
+
+        await doTick();
+        countdownOverlay.style.opacity = '0';
+        countdownOverlay.textContent = '';
+
+        const dataURL = captureFrameFromVideo();
+        addCapturedImage(dataURL);
+      }
+
+      // --- 이벤트 바인딩 ---
+      function bindEvents() {
+        takePhotoBtn.addEventListener('click', countdownAndCapture);
+
+        uploadInput.addEventListener('change', (e) => {
+          const file = e.target.files && e.target.files[0];
+          if (!file) return;
+          captureFrameFromFile(file, (dataURL) => {
+            addCapturedImage(dataURL);
+            uploadInput.value = '';
+          });
+        });
+
+        bwToggleBtn.addEventListener('click', toggleBWMode);
+        downloadStripBtn.addEventListener('click', downloadStrip);
+        resetStripBtn.addEventListener('click', resetAll);
+      }
+
+      // --- 초기 실행 ---
+      window.addEventListener('load', () => {
+        startCamera();
+        bindEvents();
+        renderStrip(); // 초기 빈 화면 렌더
+        updateButtonsState();
+      });
+    </script>
+  </body>
+</html>
