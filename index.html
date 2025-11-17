@@ -23,6 +23,18 @@
         display: flex;
       }
 
+      /* 첫 페이지에만 배경 이미지 적용 */
+      #page-1 {
+        background-image: url('./assets/imgs/main_background.svg');
+        background-size: contain;
+        background-position: center center;
+        background-repeat: no-repeat;
+        background-attachment: scroll;
+        min-height: 100vh;
+        width: 100%;
+        position: relative;
+      }
+
       /* 4컷 스트립 캔버스 */
       #stripCanvas {
         width: 100%;
@@ -50,26 +62,38 @@
       #gifFrameCanvas {
         display: none;
       }
+
+      /* 앱 컨테이너 스타일 */
+      #app {
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      /* 태블릿, 모바일 사이즈에서 좌우 마진 60px */
+      @media (max-width: 1024px) {
+        #app {
+          margin-left: 60px;
+          margin-right: 60px;
+        }
+      }
+
+      /* 작은 모바일에서도 60px 마진 유지 */
+      @media (max-width: 480px) {
+        #app {
+          margin-left: 60px;
+          margin-right: 60px;
+        }
+      }
     </style>
   </head>
   <body class="min-h-screen flex items-center justify-center">
-    <div id="app" class="w-full max-w-xl mx-auto p-4">
+    <div id="app" class="w-full p-4">
       <!-- ====== PAGE 1 : INTRO ====== -->
       <section
         id="page-1"
         class="page active flex-col items-center justify-center text-center gap-6"
       >
-        <h1 class="text-2xl font-bold">인생네컷 부스</h1>
-        <p class="text-gray-600 text-sm leading-relaxed">
-          웹캠으로 4컷 사진을 찍고,
-          <br />
-          촬영 중에는 0.5초 단위로 스냅샷을 모아서 GIF도 만들어 드릴게요.
-        </p>
-        <ul class="text-xs text-gray-500 space-y-1">
-          <li>· 4장의 사진을 3초 간격으로 자동 촬영</li>
-          <li>· 촬영 전체 구간에서 0.5초 간격으로 GIF 프레임 저장</li>
-          <li>· 마지막에 4컷 이미지 + GIF를 다운로드/공유할 수 있어요</li>
-        </ul>
         <button
           id="startBtn"
           class="mt-4 inline-flex items-center justify-center px-6 py-3 rounded-full bg-black text-white text-sm font-medium hover:bg-gray-800"
