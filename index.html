@@ -96,6 +96,7 @@
             autoplay
             playsinline
             class="w-full h-full object-cover"
+            style="transform: scaleX(-1)"
           ></video>
         </div>
 
@@ -232,12 +233,23 @@
       const CUT_INTERVAL_MS = 3000; // 각 컷 사이 간격 (3초)
       const GIF_SNAPSHOT_INTERVAL_MS = 500; // GIF 프레임 간격 (0.5초)
 
+      // 프레임 이미지 설정
+      // 옵션 1: 전체 배경 프레임 이미지 (600 x 1800px PNG, 투명도 지원)
+      // 옵션 2: 개별 프레임 이미지 배열 (각 480 x 380px PNG)
+      // 옵션 3: null (기본 프레임 사용)
+      // 옵션 1: 전체 배경 프레임 사용
+      const FRAME_BACKGROUND_IMAGE = './assets/frames/full-frame.png';
+      const FRAME_IMAGES = null; // 예: ['./assets/frames/frame1.png', './assets/frames/frame2.png', ...]
+      // 또는 모든 프레임에 같은 이미지 사용: ['./assets/frames/single-frame.png', ...] (4개)
+
       let currentPage = PAGES.INTRO;
       let stream = null;
       let capturedCuts = []; // [{image: Image}]
       let gifFrames = []; // [HTMLCanvasElement]
       let gifUrl = null; // object URL
       let stripImageUrl = null;
+      let frameBackgroundImg = null; // 로드된 배경 프레임 이미지
+      let frameImages = []; // 로드된 개별 프레임 이미지 배열
 
       // DOM
       const pageElements = {
@@ -315,11 +327,27 @@
         captureCanvas.width = w;
         captureCanvas.height = h;
         const ctx = captureCanvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, w, h);
 
-        const img = new Image();
-        img.src = captureCanvas.toDataURL('image/png');
-        return img;
+        // 좌우 반전 적용
+        ctx.save();
+        ctx.translate(w, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, w, h);
+        ctx.restore();
+
+        // 캔버스를 복사해서 저장 (이미지 로드 대기 없이 바로 사용 가능)
+        const frameCanvas = document.createElement('canvas');
+        frameCanvas.width = w;
+        frameCanvas.height = h;
+        frameCanvas.getContext('2d').drawImage(captureCanvas, 0, 0);
+
+        // Image 객체로 변환 (로드 완료 대기)
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = frameCanvas.toDataURL('image/png');
+        });
       }
 
       // =========================
@@ -335,7 +363,13 @@
         gifFrameCanvas.height = targetHeight;
 
         const ctx = gifFrameCanvas.getContext('2d');
+
+        // 좌우 반전 적용
+        ctx.save();
+        ctx.translate(targetWidth, 0);
+        ctx.scale(-1, 1);
         ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+        ctx.restore();
 
         // 캔버스를 그대로 프레임으로 사용 (gif.js가 canvas를 받음)
         const frameCanvas = document.createElement('canvas');
@@ -379,11 +413,6 @@
         capturedCuts = [];
         gifFrames = [];
 
-        captureStatus.textContent = '곧 촬영이 시작됩니다. 준비해주세요!';
-
-        // 촬영 전 카운트다운 3초
-        await showCountdown(3);
-
         captureStatus.textContent =
           '촬영 중입니다. 움직이면서 포즈를 바꿔보세요!';
 
@@ -393,17 +422,37 @@
           GIF_SNAPSHOT_INTERVAL_MS
         );
 
-        // 4컷 촬영 (3초 간격)
+        // 4컷 촬영 (각 컷 촬영 전 카운트다운)
         for (let i = 0; i < TOTAL_CUTS; i++) {
-          const img = captureStillFrame();
-          if (img) capturedCuts.push(img);
+          // 각 컷 촬영 전 3초 카운트다운
+          captureStatus.textContent = `${i + 1}번째 사진 촬영 준비...`;
+          await showCountdown(3);
 
+          // 카운트다운 후 즉시 촬영 (이미지 로드 완료 대기)
+          const img = await captureStillFrame();
+          if (img) {
+            capturedCuts.push(img);
+            console.log(
+              `${i + 1}번째 사진 촬영 완료. 총 ${capturedCuts.length}장`
+            );
+          } else {
+            console.warn(`${i + 1}번째 사진 촬영 실패`);
+          }
+
+          // 마지막 컷이 아니면 다음 촬영을 위해 대기
           if (i < TOTAL_CUTS - 1) {
+            captureStatus.textContent = `촬영 중입니다... (${
+              i + 1
+            }/${TOTAL_CUTS} 완료)`;
             await new Promise((resolve) =>
               setTimeout(resolve, CUT_INTERVAL_MS)
             );
           }
         }
+
+        console.log(
+          `촬영 완료: 총 ${capturedCuts.length}장 (예상: ${TOTAL_CUTS}장)`
+        );
 
         // GIF 캡처 중지
         clearInterval(gifIntervalId);
@@ -414,6 +463,46 @@
         // 페이지 3으로 이동 + 처리 시작
         goToPage(PAGES.LOADING);
         startProcessing();
+      }
+
+      // =========================
+      // 프레임 이미지 로드
+      // =========================
+      async function loadFrameImages() {
+        frameBackgroundImg = null;
+        frameImages = [];
+
+        // 전체 배경 프레임 이미지 로드
+        if (FRAME_BACKGROUND_IMAGE) {
+          frameBackgroundImg = await new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => {
+              console.warn(
+                '배경 프레임 이미지 로드 실패:',
+                FRAME_BACKGROUND_IMAGE
+              );
+              resolve(null);
+            };
+            img.src = FRAME_BACKGROUND_IMAGE;
+          });
+        }
+
+        // 개별 프레임 이미지 로드
+        if (FRAME_IMAGES && Array.isArray(FRAME_IMAGES)) {
+          const loadPromises = FRAME_IMAGES.map((src, index) => {
+            return new Promise((resolve) => {
+              const img = new Image();
+              img.onload = () => resolve(img);
+              img.onerror = () => {
+                console.warn(`프레임 이미지 ${index + 1} 로드 실패:`, src);
+                resolve(null);
+              };
+              img.src = src;
+            });
+          });
+          frameImages = await Promise.all(loadPromises);
+        }
       }
 
       // =========================
@@ -428,9 +517,17 @@
         canvas.width = stripWidth;
         canvas.height = stripHeight;
 
-        // 배경
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, stripWidth, stripHeight);
+        // 배경: 프레임 이미지가 있으면 사용, 없으면 흰색
+        if (frameBackgroundImg) {
+          ctx.drawImage(frameBackgroundImg, 0, 0, stripWidth, stripHeight);
+        } else {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, stripWidth, stripHeight);
+        }
+
+        console.log(
+          `스트립 합성 시작: capturedCuts.length = ${capturedCuts.length}`
+        );
 
         if (capturedCuts.length === 0) {
           ctx.fillStyle = '#9ca3af';
@@ -458,36 +555,60 @@
 
         for (let i = 0; i < TOTAL_CUTS; i++) {
           const top = marginTop + i * (frameHeight + verticalGap);
-          ctx.strokeStyle = '#e5e7eb';
-          ctx.lineWidth = 8;
-          ctx.strokeRect(left, top, frameWidth, frameHeight);
+
+          // 개별 프레임 이미지가 있으면 사용, 없으면 기본 테두리
+          const frameImg =
+            frameImages[i] || (frameImages.length > 0 ? frameImages[0] : null);
+
+          if (frameImg) {
+            // 프레임 이미지 그리기
+            ctx.drawImage(frameImg, left, top, frameWidth, frameHeight);
+          } else {
+            // 기본 프레임 테두리
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(left, top, frameWidth, frameHeight);
+          }
 
           if (i < capturedCuts.length) {
             const image = capturedCuts[i];
-            const imageRatio = image.width / image.height;
-            const frameRatio = frameWidth / frameHeight;
+            console.log(
+              `프레임 ${i + 1} 그리기: image.width=${
+                image.width
+              }, image.height=${image.height}`
+            );
 
-            let drawWidth, drawHeight;
-            if (imageRatio > frameRatio) {
-              drawWidth = frameWidth;
-              drawHeight = frameWidth / imageRatio;
+            if (image.width > 0 && image.height > 0) {
+              const imageRatio = image.width / image.height;
+              const frameRatio = frameWidth / frameHeight;
+
+              let drawWidth, drawHeight;
+              if (imageRatio > frameRatio) {
+                drawWidth = frameWidth;
+                drawHeight = frameWidth / imageRatio;
+              } else {
+                drawHeight = frameHeight;
+                drawWidth = frameHeight * imageRatio;
+              }
+
+              const dx = left + (frameWidth - drawWidth) / 2;
+              const dy = top + (frameHeight - drawHeight) / 2;
+
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(left, top, frameWidth, frameHeight);
+              ctx.clip();
+              ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
+              ctx.restore();
             } else {
-              drawHeight = frameHeight;
-              drawWidth = frameHeight * imageRatio;
+              console.warn(`프레임 ${i + 1} 이미지 크기가 0입니다.`);
             }
-
-            const dx = left + (frameWidth - drawWidth) / 2;
-            const dy = top + (frameHeight - drawHeight) / 2;
-
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(left, top, frameWidth, frameHeight);
-            ctx.clip();
-            ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
-            ctx.restore();
+          } else {
+            console.warn(`프레임 ${i + 1}에 이미지가 없습니다.`);
           }
         }
 
+        console.log(`스트립 합성 완료: 총 ${capturedCuts.length}장 사용`);
         stripImageUrl = canvas.toDataURL('image/png');
       }
 
@@ -532,6 +653,9 @@
       // 로딩 페이지에서 처리 시작
       // =========================
       async function startProcessing() {
+        // 프레임 이미지 로드 (있는 경우)
+        await loadFrameImages();
+
         // 4컷 스트립 먼저 합성
         buildStripCanvas();
 
