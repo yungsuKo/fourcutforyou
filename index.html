@@ -113,21 +113,31 @@
         </p>
 
         <div
-          class="w-full aspect-[3/4] bg-black rounded-2xl overflow-hidden flex items-center justify-center"
+          class="relative w-full aspect-[3/4] bg-black rounded-2xl overflow-hidden flex items-center justify-center"
         >
+          <img
+            id="overlaySample"
+            src="./assets/frames/test_sample-removebg-preview.png"
+            alt="샘플 오버레이"
+            class="absolute top-0 -left-10 h-full w-auto pointer-events-none select-none opacity-90 z-20 object-contain"
+          />
           <video
             id="video"
             autoplay
             playsinline
-            class="w-full h-full object-cover"
+            class="relative z-10 w-full h-full object-cover"
             style="transform: scaleX(-1)"
           ></video>
         </div>
+        <div
+          id="capturedPreview"
+          class="mt-3 w-full flex flex-row gap-2 overflow-x-auto"
+        ></div>
 
         <!-- 카운트다운 오버레이 -->
         <div
           id="countdownOverlay"
-          class="pointer-events-none fixed inset-0 flex items-center justify-center text-white text-6xl font-bold bg-black/40 opacity-0 transition-opacity"
+          class="pointer-events-none fixed inset-0 flex items-center justify-center text-white text-6xl font-bold bg-black/40 opacity-0 transition-opacity z-30"
         ></div>
 
         <button
@@ -256,6 +266,8 @@
       const TOTAL_CUTS = 4; // 인생네컷 장 수
       const CUT_INTERVAL_MS = 3000; // 각 컷 사이 간격 (3초)
       const GIF_SNAPSHOT_INTERVAL_MS = 500; // GIF 프레임 간격 (0.5초)
+      const SIDE_SAMPLE_IMAGE_SRC =
+        './assets/frames/test_sample-removebg-preview.png';
 
       // 프레임 이미지 설정
       // 옵션 1: 전체 배경 프레임 이미지 (600 x 1800px PNG, 투명도 지원)
@@ -274,6 +286,7 @@
       let stripImageUrl = null;
       let frameBackgroundImg = null; // 로드된 배경 프레임 이미지
       let frameImages = []; // 로드된 개별 프레임 이미지 배열
+      let sampleOverlayImage = null; // 결과물에 들어갈 샘플 이미지
 
       // DOM
       const pageElements = {
@@ -304,6 +317,27 @@
       const downloadGifBtn = document.getElementById('downloadGifBtn');
       const shareBtn = document.getElementById('shareBtn');
 
+      const capturedPreviewContainer =
+        document.getElementById('capturedPreview');
+
+      function addCapturedPreview(image) {
+        if (!capturedPreviewContainer || !image) return;
+
+        // 썸네일 카드 래퍼
+        const wrapper = document.createElement('div');
+        wrapper.className =
+          'w-20 h-28 flex-shrink-0 overflow-hidden rounded-md border border-gray-300 bg-white shadow-sm';
+
+        // 실제 이미지
+        const thumb = document.createElement('img');
+        thumb.src = image.src; // captureStillFrame에서 만든 Image 객체 그대로 사용
+        thumb.className = 'w-full h-full object-cover';
+
+        wrapper.appendChild(thumb);
+        capturedPreviewContainer.appendChild(wrapper);
+      }
+
+      const overlaySampleEl = document.getElementById('overlaySample');
       // =========================
       // 페이지 전환
       // =========================
@@ -344,61 +378,88 @@
       // 단일 프레임 캡처 (정지컷)
       // =========================
       function captureStillFrame() {
-        if (!video.videoWidth || !video.videoHeight) return null;
+        if (!video.videoWidth || !video.videoHeight) {
+          console.warn('비디오가 아직 준비되지 않았습니다.');
+          return null;
+        }
 
         const w = video.videoWidth;
         const h = video.videoHeight;
+
         captureCanvas.width = w;
         captureCanvas.height = h;
+
         const ctx = captureCanvas.getContext('2d');
 
-        // 좌우 반전 적용
+        // 1) 비디오 (좌우 반전)
         ctx.save();
         ctx.translate(w, 0);
         ctx.scale(-1, 1);
         ctx.drawImage(video, 0, 0, w, h);
         ctx.restore();
 
-        // 캔버스를 복사해서 저장 (이미지 로드 대기 없이 바로 사용 가능)
+        // 2) 오버레이 (screen 좌표 기준으로 정확한 위치)
+        drawOverlayToCanvas(ctx, w, h);
+
+        // 3) 캔버스를 Image로 변환
         const frameCanvas = document.createElement('canvas');
         frameCanvas.width = w;
         frameCanvas.height = h;
         frameCanvas.getContext('2d').drawImage(captureCanvas, 0, 0);
 
-        // Image 객체로 변환 (로드 완료 대기)
         return new Promise((resolve) => {
           const img = new Image();
           img.onload = () => resolve(img);
-          img.onerror = () => resolve(null);
+          img.onerror = () => {
+            console.warn('캡처 이미지 로드 실패');
+            resolve(null);
+          };
           img.src = frameCanvas.toDataURL('image/png');
         });
       }
-
       // =========================
       // GIF 프레임 캡처
       // =========================
       function captureGifFrame() {
         if (!video.videoWidth || !video.videoHeight) return;
-        const targetWidth = 320;
-        const ratio = video.videoHeight / video.videoWidth;
-        const targetHeight = targetWidth * ratio;
 
-        gifFrameCanvas.width = targetWidth;
-        gifFrameCanvas.height = targetHeight;
+        // 정지컷과 동일한 해상도 사용
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+
+        gifFrameCanvas.width = w;
+        gifFrameCanvas.height = h;
 
         const ctx = gifFrameCanvas.getContext('2d');
 
-        // 좌우 반전 적용
+        // 1) 비디오 (좌우 반전)
         ctx.save();
-        ctx.translate(targetWidth, 0);
+        ctx.translate(w, 0);
         ctx.scale(-1, 1);
-        ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+        ctx.drawImage(video, 0, 0, w, h);
         ctx.restore();
 
-        // 캔버스를 그대로 프레임으로 사용 (gif.js가 canvas를 받음)
+        // 2) overlay PNG
+        if (sampleOverlayImage) {
+          const scale = h / sampleOverlayImage.height;
+          const overlayWidth = sampleOverlayImage.width * scale;
+          const overlayHeight = h;
+          const overlayX = -40; // 위와 동일하게 맞추기
+          const overlayY = 0;
+
+          ctx.drawImage(
+            sampleOverlayImage,
+            overlayX,
+            overlayY,
+            overlayWidth,
+            overlayHeight
+          );
+        }
+
+        // 3) 이 캔버스를 프레임으로 사용
         const frameCanvas = document.createElement('canvas');
-        frameCanvas.width = gifFrameCanvas.width;
-        frameCanvas.height = gifFrameCanvas.height;
+        frameCanvas.width = w;
+        frameCanvas.height = h;
         frameCanvas.getContext('2d').drawImage(gifFrameCanvas, 0, 0);
         gifFrames.push(frameCanvas);
       }
@@ -456,6 +517,7 @@
           const img = await captureStillFrame();
           if (img) {
             capturedCuts.push(img);
+            addCapturedPreview(img); // 🔹 여기 추가
             console.log(
               `${i + 1}번째 사진 촬영 완료. 총 ${capturedCuts.length}장`
             );
@@ -495,6 +557,7 @@
       async function loadFrameImages() {
         frameBackgroundImg = null;
         frameImages = [];
+        sampleOverlayImage = null;
 
         // 전체 배경 프레임 이미지 로드
         if (FRAME_BACKGROUND_IMAGE) {
@@ -632,6 +695,32 @@
           }
         }
 
+        function captureGifFrame() {
+          if (!video.videoWidth || !video.videoHeight) return;
+          const targetWidth = 320;
+          const ratio = video.videoHeight / video.videoWidth;
+          const targetHeight = targetWidth * ratio;
+
+          gifFrameCanvas.width = targetWidth;
+          gifFrameCanvas.height = targetHeight;
+
+          const ctx = gifFrameCanvas.getContext('2d');
+
+          // 비디오 (좌우 반전)
+          ctx.save();
+          ctx.translate(targetWidth, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+          ctx.restore();
+
+          // 캔버스를 프레임으로 저장
+          const frameCanvas = document.createElement('canvas');
+          frameCanvas.width = gifFrameCanvas.width;
+          frameCanvas.height = gifFrameCanvas.height;
+          frameCanvas.getContext('2d').drawImage(gifFrameCanvas, 0, 0);
+          gifFrames.push(frameCanvas);
+        }
+
         console.log(`스트립 합성 완료: 총 ${capturedCuts.length}장 사용`);
         stripImageUrl = canvas.toDataURL('image/png');
       }
@@ -677,9 +766,6 @@
       // 로딩 페이지에서 처리 시작
       // =========================
       async function startProcessing() {
-        // 프레임 이미지 로드 (있는 경우)
-        await loadFrameImages();
-
         // 4컷 스트립 먼저 합성
         buildStripCanvas();
 
@@ -753,13 +839,23 @@
         }
         captureStatus.textContent = '카메라 준비 중입니다...';
         captureStartBtn.disabled = true;
+
+        if (capturedPreviewContainer) {
+          capturedPreviewContainer.innerHTML = '';
+        }
       }
 
       // =========================
       // 이벤트 바인딩
       // =========================
-      startBtn.addEventListener('click', () => {
+      startBtn.addEventListener('click', async () => {
+        // 1. 프레임/오버레이 이미지 먼저 로드
+        await loadFrameImages();
+
+        // 2. 촬영 페이지로 이동
         goToPage(PAGES.CAPTURE);
+
+        // 3. 카메라 시작
         startCamera();
       });
 
@@ -791,6 +887,43 @@
         }
         if (gifUrl) URL.revokeObjectURL(gifUrl);
       });
+
+      function drawOverlayToCanvas(ctx, canvasWidth, canvasHeight) {
+        if (!overlaySampleEl) return;
+
+        const videoRect = video.getBoundingClientRect();
+        const overlayRect = overlaySampleEl.getBoundingClientRect();
+
+        // video가 실제 화면에 0x0 사이즈로 나오는 경우 방어
+        if (videoRect.width === 0 || videoRect.height === 0) {
+          console.warn('video rect size is 0');
+          return;
+        }
+
+        // overlay가 video 위에 어디에 있는지(상대 위치)를 화면 기준으로 계산
+        const relX = overlayRect.left - videoRect.left;
+        const relY = overlayRect.top - videoRect.top;
+        const relW = overlayRect.width;
+        const relH = overlayRect.height;
+
+        // 화면 좌표 → 캔버스 좌표 (비율로 매핑)
+        const scaleX = canvasWidth / videoRect.width;
+        const scaleY = canvasHeight / videoRect.height;
+
+        const overlayX = relX * scaleX;
+        const overlayY = relY * scaleY;
+        const overlayWidth = relW * scaleX;
+        const overlayHeight = relH * scaleY;
+
+        // 실제로 그리기
+        ctx.drawImage(
+          overlaySampleEl,
+          overlayX,
+          overlayY,
+          overlayWidth,
+          overlayHeight
+        );
+      }
     </script>
   </body>
 </html>
