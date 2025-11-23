@@ -70,19 +70,36 @@
         margin-right: auto;
       }
 
-      /* 태블릿, 모바일 사이즈에서 좌우 마진 60px */
+      /* 촬영 화면 비디오 컨테이너 */
+      #videoContainer {
+        width: 600px;
+        height: 450px; /* 600 * (180/240) = 450px */
+        max-width: 100%;
+      }
+
+      /* 태블릿, 모바일 사이즈에서 좌우 마진 80px */
       @media (max-width: 1024px) {
         #app {
-          margin-left: 60px;
-          margin-right: 60px;
+          margin-left: 80px;
+          margin-right: 80px;
+        }
+
+        #videoContainer {
+          width: calc(100vw - 160px); /* 좌우 여백 80px씩 */
+          height: calc((100vw - 160px) * 180 / 240); /* 240:180 비율 유지 */
         }
       }
 
-      /* 작은 모바일에서도 60px 마진 유지 */
+      /* 작은 모바일에서도 80px 마진 유지 */
       @media (max-width: 480px) {
         #app {
-          margin-left: 60px;
-          margin-right: 60px;
+          margin-left: 80px;
+          margin-right: 80px;
+        }
+
+        #videoContainer {
+          width: calc(100vw - 160px);
+          height: calc((100vw - 160px) * 180 / 240);
         }
       }
     </style>
@@ -113,13 +130,14 @@
         </p>
 
         <div
-          class="relative w-full aspect-[3/4] bg-black rounded-2xl overflow-hidden flex items-center justify-center"
+          id="videoContainer"
+          class="relative bg-black rounded-2xl overflow-hidden flex items-center justify-center mx-auto"
         >
           <img
             id="overlaySample"
-            src="./assets/frames/test_sample-removebg-preview.png"
+            src="./assets/frames/final_cat_frame.png"
             alt="샘플 오버레이"
-            class="absolute top-0 -left-10 h-full w-auto pointer-events-none select-none opacity-90 z-20 object-contain"
+            class="absolute top-0 h-full w-auto pointer-events-none select-none opacity-90 z-20 object-contain"
           />
           <video
             id="video"
@@ -179,7 +197,8 @@
             id="loadingGifPreview"
             src=""
             alt="GIF Preview"
-            class="w-32 h-32 object-cover rounded-xl bg-gray-200 hidden"
+            class="w-32 object-cover rounded-xl bg-gray-200 hidden"
+            style="aspect-ratio: 240 / 180"
           />
         </div>
 
@@ -217,7 +236,8 @@
             id="resultGif"
             src=""
             alt="Result GIF"
-            class="w-32 h-32 object-cover rounded-xl bg-gray-200"
+            class="w-32 object-cover rounded-xl bg-gray-200"
+            style="aspect-ratio: 240 / 180"
           />
         </div>
 
@@ -266,8 +286,7 @@
       const TOTAL_CUTS = 4; // 인생네컷 장 수
       const CUT_INTERVAL_MS = 3000; // 각 컷 사이 간격 (3초)
       const GIF_SNAPSHOT_INTERVAL_MS = 500; // GIF 프레임 간격 (0.5초)
-      const SIDE_SAMPLE_IMAGE_SRC =
-        './assets/frames/test_sample-removebg-preview.png';
+      const SIDE_SAMPLE_IMAGE_SRC = './assets/frames/final_cat_frame.png';
 
       // 프레임 이미지 설정
       // 옵션 1: 전체 배경 프레임 이미지 (600 x 1800px PNG, 투명도 지원)
@@ -323,10 +342,11 @@
       function addCapturedPreview(image) {
         if (!capturedPreviewContainer || !image) return;
 
-        // 썸네일 카드 래퍼
+        // 썸네일 카드 래퍼 (240:180 비율)
         const wrapper = document.createElement('div');
         wrapper.className =
-          'w-20 h-28 flex-shrink-0 overflow-hidden rounded-md border border-gray-300 bg-white shadow-sm';
+          'w-20 flex-shrink-0 overflow-hidden rounded-md border border-gray-300 bg-white shadow-sm';
+        wrapper.style.aspectRatio = '240 / 180';
 
         // 실제 이미지
         const thumb = document.createElement('img');
@@ -398,8 +418,10 @@
         ctx.drawImage(video, 0, 0, w, h);
         ctx.restore();
 
-        // 2) 오버레이 (screen 좌표 기준으로 정확한 위치)
-        drawOverlayToCanvas(ctx, w, h);
+        // 2) 프레임 이미지 오버레이 (비디오 크기에 맞춰서 전체 덮기)
+        if (sampleOverlayImage) {
+          ctx.drawImage(sampleOverlayImage, 0, 0, w, h);
+        }
 
         // 3) 캔버스를 Image로 변환
         const frameCanvas = document.createElement('canvas');
@@ -439,21 +461,9 @@
         ctx.drawImage(video, 0, 0, w, h);
         ctx.restore();
 
-        // 2) overlay PNG
+        // 2) 프레임 이미지 오버레이 (비디오 크기에 맞춰서 전체 덮기)
         if (sampleOverlayImage) {
-          const scale = h / sampleOverlayImage.height;
-          const overlayWidth = sampleOverlayImage.width * scale;
-          const overlayHeight = h;
-          const overlayX = -40; // 위와 동일하게 맞추기
-          const overlayY = 0;
-
-          ctx.drawImage(
-            sampleOverlayImage,
-            overlayX,
-            overlayY,
-            overlayWidth,
-            overlayHeight
-          );
+          ctx.drawImage(sampleOverlayImage, 0, 0, w, h);
         }
 
         // 3) 이 캔버스를 프레임으로 사용
@@ -558,6 +568,30 @@
         frameBackgroundImg = null;
         frameImages = [];
         sampleOverlayImage = null;
+
+        // overlaySample 이미지 로드
+        if (SIDE_SAMPLE_IMAGE_SRC) {
+          sampleOverlayImage = await new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              console.log(
+                'overlaySample 이미지 로드 완료:',
+                img.width,
+                img.height
+              );
+              resolve(img);
+            };
+            img.onerror = () => {
+              console.warn(
+                'overlaySample 이미지 로드 실패:',
+                SIDE_SAMPLE_IMAGE_SRC
+              );
+              resolve(null);
+            };
+            img.src = SIDE_SAMPLE_IMAGE_SRC;
+          });
+        }
 
         // 전체 배경 프레임 이미지 로드
         if (FRAME_BACKGROUND_IMAGE) {
@@ -887,43 +921,6 @@
         }
         if (gifUrl) URL.revokeObjectURL(gifUrl);
       });
-
-      function drawOverlayToCanvas(ctx, canvasWidth, canvasHeight) {
-        if (!overlaySampleEl) return;
-
-        const videoRect = video.getBoundingClientRect();
-        const overlayRect = overlaySampleEl.getBoundingClientRect();
-
-        // video가 실제 화면에 0x0 사이즈로 나오는 경우 방어
-        if (videoRect.width === 0 || videoRect.height === 0) {
-          console.warn('video rect size is 0');
-          return;
-        }
-
-        // overlay가 video 위에 어디에 있는지(상대 위치)를 화면 기준으로 계산
-        const relX = overlayRect.left - videoRect.left;
-        const relY = overlayRect.top - videoRect.top;
-        const relW = overlayRect.width;
-        const relH = overlayRect.height;
-
-        // 화면 좌표 → 캔버스 좌표 (비율로 매핑)
-        const scaleX = canvasWidth / videoRect.width;
-        const scaleY = canvasHeight / videoRect.height;
-
-        const overlayX = relX * scaleX;
-        const overlayY = relY * scaleY;
-        const overlayWidth = relW * scaleX;
-        const overlayHeight = relH * scaleY;
-
-        // 실제로 그리기
-        ctx.drawImage(
-          overlaySampleEl,
-          overlayX,
-          overlayY,
-          overlayWidth,
-          overlayHeight
-        );
-      }
     </script>
   </body>
 </html>
