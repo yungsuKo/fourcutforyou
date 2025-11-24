@@ -37,8 +37,9 @@
 
       /* 4컷 스트립 캔버스 */
       #stripCanvas {
-        width: 100%;
-        height: auto;
+        width: 600px;
+        height: 450px;
+        max-width: 100%;
         display: block;
       }
 
@@ -118,10 +119,10 @@
           촬영 시작하기
         </button>
         <a
-          href="./solo.html"
+          href="./index.html"
           class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-white text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
         >
-          1컷 찍기
+          4컷 찍기
         </a>
       </section>
 
@@ -173,13 +174,13 @@
           class="mt-3 inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed"
           disabled
         >
-          4컷 자동 촬영 시작
+          촬영 시작
         </button>
 
         <p class="text-[11px] text-gray-400 mt-1 text-center">
-          촬영 버튼을 누르면 3초 간격으로 4장을 자동 촬영하고,
+          촬영 버튼을 누르면 3초 카운트다운 이후 한 장을 촬영하고,
           <br />
-          동시에 0.5초마다 GIF용 스냅샷도 함께 저장합니다.
+          동시에 GIF용 스냅샷도 함께 저장합니다.
         </p>
 
         <!-- 캡처용 숨김 캔버스 -->
@@ -194,7 +195,7 @@
       >
         <h2 class="text-lg font-semibold">사진을 합성하는 중이에요</h2>
         <p class="text-xs text-gray-500 text-center">
-          4컷 이미지를 만들고 GIF를 생성하고 있어요.
+          1컷 이미지를 만들고 GIF를 생성하고 있어요.
           <br />
           조금만 기다려 주세요.
         </p>
@@ -230,13 +231,16 @@
         id="page-4"
         class="page flex-col items-center justify-center gap-4"
       >
-        <h2 class="text-lg font-semibold">완성된 인생네컷</h2>
+        <h2 class="text-lg font-semibold">완성된 인생한컷</h2>
 
         <!-- 4컷 스트립 -->
-        <div
-          class="w-full max-w-xs bg-white rounded-2xl border border-gray-200 p-3 shadow-sm"
-        >
-          <canvas id="stripCanvas" class="w-full"></canvas>
+        <div class="w-full flex justify-center">
+          <div
+            class="bg-white rounded-2xl border border-gray-200 p-3 shadow-sm"
+            style="width: 600px; max-width: 100%"
+          >
+            <canvas id="stripCanvas"></canvas>
+          </div>
         </div>
 
         <!-- GIF -->
@@ -257,7 +261,7 @@
             id="downloadStripBtn"
             class="px-4 py-2 rounded-full bg-black text-white text-xs font-medium hover:bg-gray-800"
           >
-            4컷 이미지 다운로드
+            1컷 이미지 다운로드
           </button>
           <button
             id="downloadGifBtn"
@@ -293,17 +297,12 @@
         RESULT: 4,
       };
 
-      const TOTAL_CUTS = 4; // 인생네컷 장 수
+      const TOTAL_CUTS = 1; // 싱글 샷
       const CUT_INTERVAL_MS = 3000; // 각 컷 사이 간격 (3초)
       const GIF_SNAPSHOT_INTERVAL_MS = 500; // GIF 프레임 간격 (0.5초)
 
       // 각 촬영별 오버레이 이미지 (1, 2, 3, 4번째 순서)
-      const SAMPLE_OVERLAY_IMAGES = [
-        './assets/frames/004.png', // 1번째
-        './assets/frames/005.png', // 2번째
-        './assets/frames/006.png', // 3번째
-        './assets/frames/007.png', // 4번째
-      ];
+      const SAMPLE_OVERLAY_IMAGES = ['./assets/frames/007.png'];
 
       // 프레임 이미지 설정
       // 옵션 1: 전체 배경 프레임 이미지 (600 x 1800px PNG, 투명도 지원)
@@ -689,7 +688,7 @@
         const ctx = canvas.getContext('2d');
 
         const stripWidth = 600;
-        const stripHeight = 1800; // 1:3 비율
+        const stripHeight = 450; // 촬영 비율(240:180 = 4:3) 유지
         canvas.width = stripWidth;
         canvas.height = stripHeight;
 
@@ -717,71 +716,37 @@
           return;
         }
 
-        const marginTop = 80;
-        const marginBottom = 80;
-        const verticalGap = 40;
-        const availableHeight =
-          stripHeight -
-          marginTop -
-          marginBottom -
-          verticalGap * (TOTAL_CUTS - 1);
-        const frameHeight = availableHeight / TOTAL_CUTS;
-        const frameWidth = stripWidth * 0.8;
-        const left = (stripWidth - frameWidth) / 2;
+        const margin = 30;
+        const frameWidth = stripWidth - margin * 2;
+        const frameHeight = stripHeight - margin * 2;
+        const left = margin;
+        const top = margin;
 
-        for (let i = 0; i < TOTAL_CUTS; i++) {
-          const top = marginTop + i * (frameHeight + verticalGap);
+        const image = capturedCuts[0];
+        if (image && image.width > 0 && image.height > 0) {
+          const imageRatio = image.width / image.height;
+          const frameRatio = frameWidth / frameHeight;
 
-          // 개별 프레임 이미지가 있으면 사용, 없으면 기본 테두리
-          const frameImg =
-            frameImages[i] || (frameImages.length > 0 ? frameImages[0] : null);
-
-          if (frameImg) {
-            // 프레임 이미지 그리기
-            ctx.drawImage(frameImg, left, top, frameWidth, frameHeight);
+          let drawWidth, drawHeight;
+          if (imageRatio > frameRatio) {
+            drawWidth = frameWidth;
+            drawHeight = frameWidth / imageRatio;
           } else {
-            // 기본 프레임 테두리
-            ctx.strokeStyle = '#e5e7eb';
-            ctx.lineWidth = 8;
-            ctx.strokeRect(left, top, frameWidth, frameHeight);
+            drawHeight = frameHeight;
+            drawWidth = frameHeight * imageRatio;
           }
 
-          if (i < capturedCuts.length) {
-            const image = capturedCuts[i];
-            console.log(
-              `프레임 ${i + 1} 그리기: image.width=${
-                image.width
-              }, image.height=${image.height}`
-            );
+          const dx = left + (frameWidth - drawWidth) / 2;
+          const dy = top + (frameHeight - drawHeight) / 2;
 
-            if (image.width > 0 && image.height > 0) {
-              const imageRatio = image.width / image.height;
-              const frameRatio = frameWidth / frameHeight;
-
-              let drawWidth, drawHeight;
-              if (imageRatio > frameRatio) {
-                drawWidth = frameWidth;
-                drawHeight = frameWidth / imageRatio;
-              } else {
-                drawHeight = frameHeight;
-                drawWidth = frameHeight * imageRatio;
-              }
-
-              const dx = left + (frameWidth - drawWidth) / 2;
-              const dy = top + (frameHeight - drawHeight) / 2;
-
-              ctx.save();
-              ctx.beginPath();
-              ctx.rect(left, top, frameWidth, frameHeight);
-              ctx.clip();
-              ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
-              ctx.restore();
-            } else {
-              console.warn(`프레임 ${i + 1} 이미지 크기가 0입니다.`);
-            }
-          } else {
-            console.warn(`프레임 ${i + 1}에 이미지가 없습니다.`);
-          }
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(left, top, frameWidth, frameHeight);
+          ctx.clip();
+          ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
+          ctx.restore();
+        } else {
+          console.warn('촬영 이미지가 비어 있습니다.');
         }
 
         function captureGifFrame() {
@@ -867,7 +832,7 @@
           progressText.textContent = '거의 다 됐어요!';
         } else {
           progressText.textContent =
-            'GIF 생성에 실패했어요. 4컷 이미지만 제공됩니다.';
+            'GIF 생성에 실패했어요. 1컷 이미지만 제공됩니다.';
         }
 
         goResultBtn.disabled = false;
