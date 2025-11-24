@@ -286,7 +286,14 @@
       const TOTAL_CUTS = 4; // 인생네컷 장 수
       const CUT_INTERVAL_MS = 3000; // 각 컷 사이 간격 (3초)
       const GIF_SNAPSHOT_INTERVAL_MS = 500; // GIF 프레임 간격 (0.5초)
-      const SIDE_SAMPLE_IMAGE_SRC = './assets/frames/final_cat_frame.png';
+
+      // 각 촬영별 오버레이 이미지 (1, 2, 3, 4번째 순서)
+      const SAMPLE_OVERLAY_IMAGES = [
+        './assets/frames/004.png', // 1번째
+        './assets/frames/005.png', // 2번째
+        './assets/frames/006.png', // 3번째
+        './assets/frames/007.png', // 4번째
+      ];
 
       // 프레임 이미지 설정
       // 옵션 1: 전체 배경 프레임 이미지 (600 x 1800px PNG, 투명도 지원)
@@ -305,7 +312,8 @@
       let stripImageUrl = null;
       let frameBackgroundImg = null; // 로드된 배경 프레임 이미지
       let frameImages = []; // 로드된 개별 프레임 이미지 배열
-      let sampleOverlayImage = null; // 결과물에 들어갈 샘플 이미지
+      let sampleOverlayImages = []; // 각 촬영별 오버레이 이미지 배열
+      let currentCaptureIndex = 0; // 현재 촬영 인덱스 (0~3)
 
       // DOM
       const pageElements = {
@@ -387,6 +395,12 @@
           captureStatus.textContent =
             '카메라 준비 완료! 촬영 버튼을 눌러주세요.';
           captureStartBtn.disabled = false;
+
+          // 첫 번째 오버레이 이미지 표시
+          currentCaptureIndex = 0;
+          if (overlaySampleEl && SAMPLE_OVERLAY_IMAGES.length > 0) {
+            overlaySampleEl.src = SAMPLE_OVERLAY_IMAGES[0];
+          }
         } catch (err) {
           console.error(err);
           alert('카메라 권한을 허용해 주세요.');
@@ -397,7 +411,7 @@
       // =========================
       // 단일 프레임 캡처 (정지컷)
       // =========================
-      function captureStillFrame() {
+      function captureStillFrame(captureIndex = currentCaptureIndex) {
         if (!video.videoWidth || !video.videoHeight) {
           console.warn('비디오가 아직 준비되지 않았습니다.');
           return null;
@@ -418,9 +432,10 @@
         ctx.drawImage(video, 0, 0, w, h);
         ctx.restore();
 
-        // 2) 프레임 이미지 오버레이 (비디오 크기에 맞춰서 전체 덮기)
-        if (sampleOverlayImage) {
-          ctx.drawImage(sampleOverlayImage, 0, 0, w, h);
+        // 2) 프레임 이미지 오버레이 (현재 촬영 인덱스에 맞는 이미지 사용)
+        const overlayImg = sampleOverlayImages[captureIndex];
+        if (overlayImg) {
+          ctx.drawImage(overlayImg, 0, 0, w, h);
         }
 
         // 3) 캔버스를 Image로 변환
@@ -461,9 +476,10 @@
         ctx.drawImage(video, 0, 0, w, h);
         ctx.restore();
 
-        // 2) 프레임 이미지 오버레이 (비디오 크기에 맞춰서 전체 덮기)
-        if (sampleOverlayImage) {
-          ctx.drawImage(sampleOverlayImage, 0, 0, w, h);
+        // 2) 프레임 이미지 오버레이 (현재 촬영 인덱스에 맞는 이미지 사용)
+        const overlayImg = sampleOverlayImages[currentCaptureIndex];
+        if (overlayImg) {
+          ctx.drawImage(overlayImg, 0, 0, w, h);
         }
 
         // 3) 이 캔버스를 프레임으로 사용
@@ -519,12 +535,21 @@
 
         // 4컷 촬영 (각 컷 촬영 전 카운트다운)
         for (let i = 0; i < TOTAL_CUTS; i++) {
+          // 현재 촬영 인덱스 업데이트
+          currentCaptureIndex = i;
+
+          // 화면의 오버레이 이미지 업데이트
+          const overlayImg = sampleOverlayImages[i];
+          if (overlayImg && overlaySampleEl) {
+            overlaySampleEl.src = SAMPLE_OVERLAY_IMAGES[i];
+          }
+
           // 각 컷 촬영 전 3초 카운트다운
           captureStatus.textContent = `${i + 1}번째 사진 촬영 준비...`;
           await showCountdown(3);
 
           // 카운트다운 후 즉시 촬영 (이미지 로드 완료 대기)
-          const img = await captureStillFrame();
+          const img = await captureStillFrame(i);
           if (img) {
             capturedCuts.push(img);
             addCapturedPreview(img); // 🔹 여기 추가
@@ -567,30 +592,30 @@
       async function loadFrameImages() {
         frameBackgroundImg = null;
         frameImages = [];
-        sampleOverlayImage = null;
+        sampleOverlayImages = [];
 
-        // overlaySample 이미지 로드
-        if (SIDE_SAMPLE_IMAGE_SRC) {
-          sampleOverlayImage = await new Promise((resolve) => {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => {
-              console.log(
-                'overlaySample 이미지 로드 완료:',
-                img.width,
-                img.height
-              );
-              resolve(img);
-            };
-            img.onerror = () => {
-              console.warn(
-                'overlaySample 이미지 로드 실패:',
-                SIDE_SAMPLE_IMAGE_SRC
-              );
-              resolve(null);
-            };
-            img.src = SIDE_SAMPLE_IMAGE_SRC;
+        // 각 촬영별 오버레이 이미지 로드
+        if (SAMPLE_OVERLAY_IMAGES && Array.isArray(SAMPLE_OVERLAY_IMAGES)) {
+          const loadPromises = SAMPLE_OVERLAY_IMAGES.map((src, index) => {
+            return new Promise((resolve) => {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = () => {
+                console.log(
+                  `오버레이 이미지 ${index + 1} 로드 완료:`,
+                  img.width,
+                  img.height
+                );
+                resolve(img);
+              };
+              img.onerror = () => {
+                console.warn(`오버레이 이미지 ${index + 1} 로드 실패:`, src);
+                resolve(null);
+              };
+              img.src = src;
+            });
           });
+          sampleOverlayImages = await Promise.all(loadPromises);
         }
 
         // 전체 배경 프레임 이미지 로드
@@ -867,6 +892,7 @@
         capturedCuts = [];
         gifFrames = [];
         stripImageUrl = null;
+        currentCaptureIndex = 0;
         if (gifUrl) {
           URL.revokeObjectURL(gifUrl);
           gifUrl = null;
@@ -876,6 +902,11 @@
 
         if (capturedPreviewContainer) {
           capturedPreviewContainer.innerHTML = '';
+        }
+
+        // 첫 번째 오버레이 이미지로 초기화
+        if (overlaySampleEl && SAMPLE_OVERLAY_IMAGES.length > 0) {
+          overlaySampleEl.src = SAMPLE_OVERLAY_IMAGES[0];
         }
       }
 
