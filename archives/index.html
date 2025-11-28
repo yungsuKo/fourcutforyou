@@ -25,7 +25,7 @@
 
       /* 첫 페이지에만 배경 이미지 적용 */
       #page-1 {
-        background-image: url('./assets/imgs/main_background.svg');
+        background-image: url('./assets/imgs/main_background.png');
         background-size: contain;
         background-position: center center;
         background-repeat: no-repeat;
@@ -37,9 +37,8 @@
 
       /* 4컷 스트립 캔버스 */
       #stripCanvas {
-        max-width: 100%;
-        width: 600px;
-        height: auto; /* 비율은 내부 캔버스 해상도 기준으로 자동 */
+        width: 100%;
+        height: auto;
         display: block;
       }
 
@@ -74,7 +73,7 @@
       /* 촬영 화면 비디오 컨테이너 */
       #videoContainer {
         width: 600px;
-        aspect-ratio: 4 / 3;
+        height: 450px; /* 600 * (180/240) = 450px */
         max-width: 100%;
       }
 
@@ -103,25 +102,6 @@
           height: calc((100vw - 160px) * 180 / 240);
         }
       }
-
-      #frameSelectorWrapper {
-        width: 100%;
-        max-width: 600px; /* 웹캠과 동일한 최대 폭 */
-        margin: 0 auto;
-      }
-
-      /* ✅ 한 줄, 균등 분배 */
-      #frameSelector {
-        display: flex;
-        gap: 8px;
-        width: 100%;
-      }
-
-      /* 버튼 공통 스타일은 JS에서 className으로 넣어도 되고, 이렇게 해도 됨 */
-      #frameSelector button {
-        flex: 1 1 0; /* 남은 공간을 균등 분배 */
-        aspect-ratio: 4 / 3; /* 4:3 비율 유지 */
-      }
     </style>
   </head>
   <body class="min-h-screen flex items-center justify-center">
@@ -138,10 +118,10 @@
           촬영 시작하기
         </button>
         <a
-          href="./index.html"
+          href="./solo.html"
           class="inline-flex items-center justify-center px-6 py-3 rounded-full bg-white text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
         >
-          4컷 찍기
+          1컷 찍기
         </a>
       </section>
 
@@ -161,7 +141,7 @@
         >
           <img
             id="overlaySample"
-            src="./assets/frames/004.png"
+            src="./assets/frames/002.png"
             alt="샘플 오버레이"
             class="absolute top-0 h-full w-auto pointer-events-none select-none opacity-90 z-20 object-contain"
           />
@@ -173,17 +153,10 @@
             style="transform: scaleX(-1)"
           ></video>
         </div>
-
-        <!-- 프레임 선택 영역 (웹캠 아래) -->
-        <!-- 웹캠 아래 -->
-        <div class="mt-3 w-full">
-          <p class="text-[11px] text-gray-500 mb-1">프레임을 선택해주세요.</p>
-
-          <!-- ✅ 600px 안에서 전체 폭 사용 -->
-          <div id="frameSelectorWrapper" class="w-full max-w-[600px] mx-auto">
-            <div id="frameSelector"></div>
-          </div>
-        </div>
+        <div
+          id="capturedPreview"
+          class="mt-3 w-full flex flex-row gap-2 overflow-x-auto"
+        ></div>
 
         <!-- 카운트다운 오버레이 -->
         <div
@@ -200,13 +173,13 @@
           class="mt-3 inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-black text-white text-sm font-medium hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed"
           disabled
         >
-          촬영 시작
+          4컷 자동 촬영 시작
         </button>
 
         <p class="text-[11px] text-gray-400 mt-1 text-center">
-          촬영 버튼을 누르면 3초 카운트다운 이후 한 장을 촬영하고,
+          촬영 버튼을 누르면 3초 간격으로 4장을 자동 촬영하고,
           <br />
-          동시에 GIF용 스냅샷도 함께 저장합니다.
+          동시에 0.5초마다 GIF용 스냅샷도 함께 저장합니다.
         </p>
 
         <!-- 캡처용 숨김 캔버스 -->
@@ -221,7 +194,7 @@
       >
         <h2 class="text-lg font-semibold">사진을 합성하는 중이에요</h2>
         <p class="text-xs text-gray-500 text-center">
-          1컷 이미지를 만들고 GIF를 생성하고 있어요.
+          4컷 이미지를 만들고 GIF를 생성하고 있어요.
           <br />
           조금만 기다려 주세요.
         </p>
@@ -257,16 +230,13 @@
         id="page-4"
         class="page flex-col items-center justify-center gap-4"
       >
-        <h2 class="text-lg font-semibold">완성된 인생한컷</h2>
+        <h2 class="text-lg font-semibold">완성된 인생네컷</h2>
 
-        <!-- 1컷 스트립 -->
-        <div class="w-full flex justify-center">
-          <div
-            class="bg-white rounded-2xl border border-gray-200 p-3 shadow-sm"
-            style="width: 600px; max-width: 100%"
-          >
-            <canvas id="stripCanvas"></canvas>
-          </div>
+        <!-- 4컷 스트립 -->
+        <div
+          class="w-full max-w-xs bg-white rounded-2xl border border-gray-200 p-3 shadow-sm"
+        >
+          <canvas id="stripCanvas" class="w-full"></canvas>
         </div>
 
         <!-- GIF -->
@@ -281,28 +251,13 @@
           />
         </div>
 
-        <!-- ✅ QR 코드 영역 추가 -->
-        <div class="mt-4 flex flex-col items-center gap-2">
-          <p class="text-xs text-gray-500">결과 이미지 QR 코드</p>
-          <div
-            id="qrContainer"
-            class="w-32 h-32 flex items-center justify-center bg-white rounded-xl border border-gray-200"
-          ></div>
-          <button
-            id="copyLinkBtn"
-            class="mt-1 px-3 py-1.5 rounded-full bg-gray-900 text-white text-[11px] font-medium hover:bg-gray-700"
-          >
-            링크 복사
-          </button>
-        </div>
-
         <!-- 버튼들 -->
         <div class="mt-4 flex flex-wrap justify-center gap-2">
           <button
             id="downloadStripBtn"
             class="px-4 py-2 rounded-full bg-black text-white text-xs font-medium hover:bg-gray-800"
           >
-            1컷 이미지 다운로드
+            4컷 이미지 다운로드
           </button>
           <button
             id="downloadGifBtn"
@@ -338,24 +293,26 @@
         RESULT: 4,
       };
 
-      const TOTAL_CUTS = 1; // 싱글 샷
+      const TOTAL_CUTS = 4; // 인생네컷 장 수
       const CUT_INTERVAL_MS = 3000; // 각 컷 사이 간격 (3초)
       const GIF_SNAPSHOT_INTERVAL_MS = 500; // GIF 프레임 간격 (0.5초)
 
-      // 사용자가 선택할 수 있는 프레임 후보들
-      const FRAME_OPTIONS = [
-        './assets/frames/002.png',
-        './assets/frames/003.png',
-        './assets/frames/004.png',
-        './assets/frames/005.png',
+      // 각 촬영별 오버레이 이미지 (1, 2, 3, 4번째 순서)
+      const SAMPLE_OVERLAY_IMAGES = [
+        './assets/frames/002.png', // 1번째
+        './assets/frames/003.png', // 2번째
+        './assets/frames/004.png', // 3번째
+        './assets/frames/005.png', // 4번째
       ];
 
-      // 각 촬영별 오버레이 이미지 (1컷이라 FRAME_OPTIONS와 동일하게 사용)
-      const SAMPLE_OVERLAY_IMAGES = FRAME_OPTIONS;
-
       // 프레임 이미지 설정
+      // 옵션 1: 전체 배경 프레임 이미지 (600 x 1800px PNG, 투명도 지원)
+      // 옵션 2: 개별 프레임 이미지 배열 (각 480 x 380px PNG)
+      // 옵션 3: null (기본 프레임 사용)
+      // 옵션 1: 전체 배경 프레임 사용
       const FRAME_BACKGROUND_IMAGE = null;
-      const FRAME_IMAGES = null;
+      const FRAME_IMAGES = null; // 예: ['./assets/frames/frame1.png', './assets/frames/frame2.png', ...]
+      // 또는 모든 프레임에 같은 이미지 사용: ['./assets/frames/single-frame.png', ...] (4개)
 
       let currentPage = PAGES.INTRO;
       let stream = null;
@@ -365,9 +322,8 @@
       let stripImageUrl = null;
       let frameBackgroundImg = null; // 로드된 배경 프레임 이미지
       let frameImages = []; // 로드된 개별 프레임 이미지 배열
-      let sampleOverlayImages = []; // 프레임 후보 이미지 배열
-      let currentCaptureIndex = 0; // 현재 촬영 인덱스 (0)
-      let currentFrameIndex = 0; // 현재 선택된 프레임 인덱스
+      let sampleOverlayImages = []; // 각 촬영별 오버레이 이미지 배열
+      let currentCaptureIndex = 0; // 현재 촬영 인덱스 (0~3)
 
       // DOM
       const pageElements = {
@@ -402,174 +358,25 @@
       const capturedPreviewContainer =
         document.getElementById('capturedPreview');
 
-      const overlaySampleEl = document.getElementById('overlaySample');
-      const frameSelector = document.getElementById('frameSelector');
-
-      const qrContainer = document.getElementById('qrContainer');
-      const copyLinkBtn = document.getElementById('copyLinkBtn');
-      let uploadedImageUrl = null; // S3에 업로드된 최종 이미지 URL
-
-      copyLinkBtn.addEventListener('click', async () => {
-        if (!uploadedImageUrl) {
-          alert('아직 업로드된 링크가 없어요.');
-          return;
-        }
-
-        try {
-          await navigator.clipboard.writeText(uploadedImageUrl);
-          alert('링크가 클립보드에 복사되었습니다.');
-        } catch (e) {
-          console.error(e);
-          alert('복사에 실패했어요. 수동으로 복사해 주세요.');
-        }
-      });
-
-      function dataURLToBlob(dataURL) {
-        const arr = dataURL.split(',');
-        const mimeMatch = arr[0].match(/:(.*?);/);
-        const mime = mimeMatch ? mimeMatch[1] : 'image/png';
-        const bstr = atob(arr[1]);
-        let n = bstr.length;
-        const u8arr = new Uint8Array(n);
-        while (n--) {
-          u8arr[n] = bstr.charCodeAt(n);
-        }
-        return new Blob([u8arr], { type: mime });
-      }
-
-      async function uploadStripToS3() {
-        if (!stripImageUrl) {
-          console.warn('stripImageUrl이 없습니다. 업로드를 건너뜁니다.');
-          return null;
-        }
-
-        try {
-          // 1) 우리 서버에서 presigned URL + 결과 URL 받아오기
-          const res = await fetch(
-            'https://web-camera-backend.vercel.app/api/upload-url',
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fileType: 'image/png' }),
-            }
-          );
-
-          if (!res.ok) {
-            console.error('업로드 URL 요청 실패', res.status);
-            return null;
-          }
-
-          const { uploadUrl, fileUrl } = await res.json();
-
-          // 2) dataURL → Blob 변환
-          const blob = dataURLToBlob(stripImageUrl);
-
-          // 3) presigned URL로 S3에 업로드 (PUT)
-          const putRes = await fetch(uploadUrl, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'image/png',
-            },
-            body: blob,
-          });
-
-          if (!putRes.ok) {
-            console.error('S3 업로드 실패', putRes.status);
-            return null;
-          }
-
-          console.log('S3 업로드 성공:', fileUrl);
-          return fileUrl;
-        } catch (e) {
-          console.error('업로드 중 오류', e);
-          return null;
-        }
-      }
-
-      function renderQrCode(url) {
-        if (!qrContainer) return;
-        qrContainer.innerHTML = ''; // 기존 QR 제거
-
-        if (!url) {
-          qrContainer.textContent = 'URL 없음';
-          return;
-        }
-
-        new QRCode(qrContainer, {
-          text: url,
-          width: 128,
-          height: 128,
-        });
-      }
-
-      goResultBtn.addEventListener('click', () => {
-        if (gifUrl) {
-          resultGif.src = gifUrl;
-        }
-
-        // ✅ S3 업로드된 URL이 있다면 QR 생성
-        if (uploadedImageUrl) {
-          renderQrCode(uploadedImageUrl);
-        } else {
-          renderQrCode(null);
-        }
-
-        goToPage(PAGES.RESULT);
-      });
-
       function addCapturedPreview(image) {
         if (!capturedPreviewContainer || !image) return;
 
+        // 썸네일 카드 래퍼 (240:180 비율)
         const wrapper = document.createElement('div');
         wrapper.className =
           'w-20 flex-shrink-0 overflow-hidden rounded-md border border-gray-300 bg-white shadow-sm';
         wrapper.style.aspectRatio = '240 / 180';
 
+        // 실제 이미지
         const thumb = document.createElement('img');
-        thumb.src = image.src;
+        thumb.src = image.src; // captureStillFrame에서 만든 Image 객체 그대로 사용
         thumb.className = 'w-full h-full object-cover';
 
         wrapper.appendChild(thumb);
         capturedPreviewContainer.appendChild(wrapper);
       }
 
-      // =========================
-      // 프레임 선택 UI 렌더링
-      // =========================
-      function renderFrameSelector() {
-        if (!frameSelector) return;
-        frameSelector.innerHTML = '';
-
-        FRAME_OPTIONS.forEach((src, idx) => {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-
-          // ✅ flex 컨테이너에서 균등 분배 + 4:3 비율
-          btn.className = 'relative rounded-md border bg-white overflow-hidden';
-          btn.style.flex = '1 1 0';
-          btn.style.aspectRatio = '4 / 3';
-
-          if (idx === currentFrameIndex) {
-            btn.classList.add('ring-2', 'ring-black');
-          }
-
-          const img = document.createElement('img');
-          img.src = src;
-          img.alt = `프레임 ${idx + 1}`;
-          img.className = 'w-full h-full object-cover';
-
-          btn.appendChild(img);
-
-          btn.addEventListener('click', () => {
-            currentFrameIndex = idx;
-            if (overlaySampleEl) overlaySampleEl.src = src;
-            renderFrameSelector();
-          });
-
-          frameSelector.appendChild(btn);
-        });
-      }
-
+      const overlaySampleEl = document.getElementById('overlaySample');
       // =========================
       // 페이지 전환
       // =========================
@@ -600,12 +407,11 @@
             '카메라 준비 완료! 촬영 버튼을 눌러주세요.';
           captureStartBtn.disabled = false;
 
+          // 첫 번째 오버레이 이미지 표시
           currentCaptureIndex = 0;
-          currentFrameIndex = 0;
-          if (overlaySampleEl && FRAME_OPTIONS.length > 0) {
-            overlaySampleEl.src = FRAME_OPTIONS[0];
+          if (overlaySampleEl && SAMPLE_OVERLAY_IMAGES.length > 0) {
+            overlaySampleEl.src = SAMPLE_OVERLAY_IMAGES[0];
           }
-          renderFrameSelector();
         } catch (err) {
           console.error(err);
           alert('카메라 권한을 허용해 주세요.');
@@ -616,7 +422,7 @@
       // =========================
       // 단일 프레임 캡처 (정지컷)
       // =========================
-      function captureStillFrame() {
+      function captureStillFrame(captureIndex = currentCaptureIndex) {
         if (!video.videoWidth || !video.videoHeight) {
           console.warn('비디오가 아직 준비되지 않았습니다.');
           return null;
@@ -637,13 +443,13 @@
         ctx.drawImage(video, 0, 0, w, h);
         ctx.restore();
 
-        // 2) 선택된 프레임 이미지 오버레이
-        const overlayImg =
-          sampleOverlayImages[currentFrameIndex] || sampleOverlayImages[0];
+        // 2) 프레임 이미지 오버레이 (현재 촬영 인덱스에 맞는 이미지 사용)
+        const overlayImg = sampleOverlayImages[captureIndex];
         if (overlayImg) {
           ctx.drawImage(overlayImg, 0, 0, w, h);
         }
 
+        // 3) 캔버스를 Image로 변환
         const frameCanvas = document.createElement('canvas');
         frameCanvas.width = w;
         frameCanvas.height = h;
@@ -659,13 +465,13 @@
           img.src = frameCanvas.toDataURL('image/png');
         });
       }
-
       // =========================
       // GIF 프레임 캡처
       // =========================
       function captureGifFrame() {
         if (!video.videoWidth || !video.videoHeight) return;
 
+        // 정지컷과 동일한 해상도 사용
         const w = video.videoWidth;
         const h = video.videoHeight;
 
@@ -681,13 +487,13 @@
         ctx.drawImage(video, 0, 0, w, h);
         ctx.restore();
 
-        // 2) 선택된 프레임 이미지 오버레이
-        const overlayImg =
-          sampleOverlayImages[currentFrameIndex] || sampleOverlayImages[0];
+        // 2) 프레임 이미지 오버레이 (현재 촬영 인덱스에 맞는 이미지 사용)
+        const overlayImg = sampleOverlayImages[currentCaptureIndex];
         if (overlayImg) {
           ctx.drawImage(overlayImg, 0, 0, w, h);
         }
 
+        // 3) 이 캔버스를 프레임으로 사용
         const frameCanvas = document.createElement('canvas');
         frameCanvas.width = w;
         frameCanvas.height = h;
@@ -740,7 +546,7 @@
       }
 
       // =========================
-      // 자동 촬영 (1컷)
+      // 4컷 자동 촬영
       // =========================
       async function startAutoCaptureSession() {
         captureStartBtn.disabled = true;
@@ -750,22 +556,33 @@
         captureStatus.textContent =
           '촬영 중입니다. 움직이면서 포즈를 바꿔보세요!';
 
+        // GIF 프레임 캡처 타이머 시작
         const gifIntervalId = setInterval(
           captureGifFrame,
           GIF_SNAPSHOT_INTERVAL_MS
         );
 
+        // 4컷 촬영 (각 컷 촬영 전 카운트다운)
         for (let i = 0; i < TOTAL_CUTS; i++) {
+          // 현재 촬영 인덱스 업데이트
           currentCaptureIndex = i;
 
+          // 화면의 오버레이 이미지 업데이트
+          const overlayImg = sampleOverlayImages[i];
+          if (overlayImg && overlaySampleEl) {
+            overlaySampleEl.src = SAMPLE_OVERLAY_IMAGES[i];
+          }
+
+          // 각 컷 촬영 전 3초 카운트다운
           captureStatus.textContent = `${i + 1}번째 사진 촬영 준비...`;
           await showCountdown(3);
 
+          // 카운트다운 후 즉시 촬영 (이미지 로드 완료 대기)
           await flashScreen();
-          const img = await captureStillFrame();
+          const img = await captureStillFrame(i);
           if (img) {
             capturedCuts.push(img);
-            addCapturedPreview(img);
+            addCapturedPreview(img); // 🔹 여기 추가
             console.log(
               `${i + 1}번째 사진 촬영 완료. 총 ${capturedCuts.length}장`
             );
@@ -773,6 +590,7 @@
             console.warn(`${i + 1}번째 사진 촬영 실패`);
           }
 
+          // 마지막 컷이 아니면 다음 촬영을 위해 대기
           if (i < TOTAL_CUTS - 1) {
             captureStatus.textContent = `촬영 중입니다... (${
               i + 1
@@ -787,11 +605,13 @@
           `촬영 완료: 총 ${capturedCuts.length}장 (예상: ${TOTAL_CUTS}장)`
         );
 
+        // GIF 캡처 중지
         clearInterval(gifIntervalId);
 
         captureStatus.textContent =
           '촬영이 완료되었습니다. 이미지를 합성 중입니다.';
 
+        // 페이지 3으로 이동 + 처리 시작
         goToPage(PAGES.LOADING);
         startProcessing();
       }
@@ -804,7 +624,7 @@
         frameImages = [];
         sampleOverlayImages = [];
 
-        // 프레임 후보 이미지 로드
+        // 각 촬영별 오버레이 이미지 로드
         if (SAMPLE_OVERLAY_IMAGES && Array.isArray(SAMPLE_OVERLAY_IMAGES)) {
           const loadPromises = SAMPLE_OVERLAY_IMAGES.map((src, index) => {
             return new Promise((resolve) => {
@@ -862,40 +682,18 @@
       }
 
       // =========================
-      // 1컷 스트립 합성
+      // 4컷 스트립 합성
       // =========================
       function buildStripCanvas() {
         const canvas = stripCanvas;
         const ctx = canvas.getContext('2d');
 
-        console.log(
-          `스트립 합성 시작: capturedCuts.length = ${capturedCuts.length}`
-        );
-
-        if (capturedCuts.length === 0) {
-          // 캡처가 하나도 없을 때 기본 사이즈만 지정
-          canvas.width = 600;
-          canvas.height = 450;
-          ctx.fillStyle = '#9ca3af';
-          ctx.font = '24px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText(
-            '촬영된 사진이 없습니다.',
-            canvas.width / 2,
-            canvas.height / 2
-          );
-          return;
-        }
-
-        const image = capturedCuts[0];
-
-        // ✅ 최종 캔버스 크기를 "촬영 이미지와 동일"하게 설정
-        const stripWidth = image.width;
-        const stripHeight = image.height;
+        const stripWidth = 600;
+        const stripHeight = 1800; // 1:3 비율
         canvas.width = stripWidth;
         canvas.height = stripHeight;
 
-        // 배경 (원하면 여기에 프레임 배경 이미지를 깔아도 됨)
+        // 배경: 프레임 이미지가 있으면 사용, 없으면 흰색
         if (frameBackgroundImg) {
           ctx.drawImage(frameBackgroundImg, 0, 0, stripWidth, stripHeight);
         } else {
@@ -903,12 +701,119 @@
           ctx.fillRect(0, 0, stripWidth, stripHeight);
         }
 
-        // ✅ 촬영 이미지를 비율 그대로 전체에 맞춰서 그림 (늘어짐 없음)
-        ctx.drawImage(image, 0, 0, stripWidth, stripHeight);
+        console.log(
+          `스트립 합성 시작: capturedCuts.length = ${capturedCuts.length}`
+        );
 
-        console.log(`스트립 합성 완료: ${stripWidth}x${stripHeight}`);
+        if (capturedCuts.length === 0) {
+          ctx.fillStyle = '#9ca3af';
+          ctx.font = '24px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(
+            '촬영된 사진이 없습니다.',
+            stripWidth / 2,
+            stripHeight / 2
+          );
+          return;
+        }
+
+        const marginTop = 80;
+        const marginBottom = 80;
+        const verticalGap = 40;
+        const availableHeight =
+          stripHeight -
+          marginTop -
+          marginBottom -
+          verticalGap * (TOTAL_CUTS - 1);
+        const frameHeight = availableHeight / TOTAL_CUTS;
+        const frameWidth = stripWidth * 0.8;
+        const left = (stripWidth - frameWidth) / 2;
+
+        for (let i = 0; i < TOTAL_CUTS; i++) {
+          const top = marginTop + i * (frameHeight + verticalGap);
+
+          // 개별 프레임 이미지가 있으면 사용, 없으면 기본 테두리
+          const frameImg =
+            frameImages[i] || (frameImages.length > 0 ? frameImages[0] : null);
+
+          if (frameImg) {
+            // 프레임 이미지 그리기
+            ctx.drawImage(frameImg, left, top, frameWidth, frameHeight);
+          } else {
+            // 기본 프레임 테두리
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(left, top, frameWidth, frameHeight);
+          }
+
+          if (i < capturedCuts.length) {
+            const image = capturedCuts[i];
+            console.log(
+              `프레임 ${i + 1} 그리기: image.width=${
+                image.width
+              }, image.height=${image.height}`
+            );
+
+            if (image.width > 0 && image.height > 0) {
+              const imageRatio = image.width / image.height;
+              const frameRatio = frameWidth / frameHeight;
+
+              let drawWidth, drawHeight;
+              if (imageRatio > frameRatio) {
+                drawWidth = frameWidth;
+                drawHeight = frameWidth / imageRatio;
+              } else {
+                drawHeight = frameHeight;
+                drawWidth = frameHeight * imageRatio;
+              }
+
+              const dx = left + (frameWidth - drawWidth) / 2;
+              const dy = top + (frameHeight - drawHeight) / 2;
+
+              ctx.save();
+              ctx.beginPath();
+              ctx.rect(left, top, frameWidth, frameHeight);
+              ctx.clip();
+              ctx.drawImage(image, dx, dy, drawWidth, drawHeight);
+              ctx.restore();
+            } else {
+              console.warn(`프레임 ${i + 1} 이미지 크기가 0입니다.`);
+            }
+          } else {
+            console.warn(`프레임 ${i + 1}에 이미지가 없습니다.`);
+          }
+        }
+
+        function captureGifFrame() {
+          if (!video.videoWidth || !video.videoHeight) return;
+          const targetWidth = 320;
+          const ratio = video.videoHeight / video.videoWidth;
+          const targetHeight = targetWidth * ratio;
+
+          gifFrameCanvas.width = targetWidth;
+          gifFrameCanvas.height = targetHeight;
+
+          const ctx = gifFrameCanvas.getContext('2d');
+
+          // 비디오 (좌우 반전)
+          ctx.save();
+          ctx.translate(targetWidth, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(video, 0, 0, targetWidth, targetHeight);
+          ctx.restore();
+
+          // 캔버스를 프레임으로 저장
+          const frameCanvas = document.createElement('canvas');
+          frameCanvas.width = gifFrameCanvas.width;
+          frameCanvas.height = gifFrameCanvas.height;
+          frameCanvas.getContext('2d').drawImage(gifFrameCanvas, 0, 0);
+          gifFrames.push(frameCanvas);
+        }
+
+        console.log(`스트립 합성 완료: 총 ${capturedCuts.length}장 사용`);
         stripImageUrl = canvas.toDataURL('image/png');
       }
+
       // =========================
       // GIF 생성 (gif.js)
       // =========================
@@ -950,10 +855,10 @@
       // 로딩 페이지에서 처리 시작
       // =========================
       async function startProcessing() {
-        // 1) 최종 이미지 캔버스 합성
+        // 4컷 스트립 먼저 합성
         buildStripCanvas();
 
-        // 2) GIF 생성
+        // GIF 생성
         const url = await buildGif();
 
         if (url) {
@@ -962,22 +867,9 @@
           progressText.textContent = '거의 다 됐어요!';
         } else {
           progressText.textContent =
-            'GIF 생성에 실패했어요. 1컷 이미지만 제공됩니다.';
+            'GIF 생성에 실패했어요. 4컷 이미지만 제공됩니다.';
         }
 
-        // 3) ✅ S3 업로드 진행
-        progressText.textContent = '이미지를 업로드하고 있어요...';
-        const uploadedUrl = await uploadStripToS3();
-        uploadedImageUrl = uploadedUrl;
-
-        if (uploadedUrl) {
-          progressText.textContent = '업로드 완료! 결과를 확인하세요.';
-        } else {
-          progressText.textContent =
-            '업로드에 실패했어요. QR 코드는 제공되지 않습니다.';
-        }
-
-        // 4) 결과 페이지 버튼 활성화
         goResultBtn.disabled = false;
       }
 
@@ -988,7 +880,7 @@
         if (!stripImageUrl) return;
         const a = document.createElement('a');
         a.href = stripImageUrl;
-        a.download = 'lifesinglecut.png';
+        a.download = 'lifefourcut.png';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1001,7 +893,7 @@
         }
         const a = document.createElement('a');
         a.href = gifUrl;
-        a.download = 'lifesinglecut.gif';
+        a.download = 'lifefourcut.gif';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -1015,8 +907,8 @@
         try {
           await navigator.share({
             title: '인생네컷',
-            text: '내가 찍은 인생한컷!',
-            url: window.location.href,
+            text: '내가 찍은 인생네컷!',
+            url: window.location.href, // 필요에 따라 수정
           });
         } catch (e) {
           console.log('공유 취소/오류:', e);
@@ -1031,7 +923,6 @@
         gifFrames = [];
         stripImageUrl = null;
         currentCaptureIndex = 0;
-        currentFrameIndex = 0;
         if (gifUrl) {
           URL.revokeObjectURL(gifUrl);
           gifUrl = null;
@@ -1043,23 +934,36 @@
           capturedPreviewContainer.innerHTML = '';
         }
 
-        if (overlaySampleEl && FRAME_OPTIONS.length > 0) {
-          overlaySampleEl.src = FRAME_OPTIONS[0];
+        // 첫 번째 오버레이 이미지로 초기화
+        if (overlaySampleEl && SAMPLE_OVERLAY_IMAGES.length > 0) {
+          overlaySampleEl.src = SAMPLE_OVERLAY_IMAGES[0];
         }
-        renderFrameSelector();
       }
 
       // =========================
       // 이벤트 바인딩
       // =========================
       startBtn.addEventListener('click', async () => {
+        // 1. 프레임/오버레이 이미지 먼저 로드
         await loadFrameImages();
+
+        // 2. 촬영 페이지로 이동
         goToPage(PAGES.CAPTURE);
+
+        // 3. 카메라 시작
         startCamera();
       });
 
       captureStartBtn.addEventListener('click', () => {
         startAutoCaptureSession();
+      });
+
+      goResultBtn.addEventListener('click', () => {
+        // 결과 페이지 세팅
+        if (gifUrl) {
+          resultGif.src = gifUrl;
+        }
+        goToPage(PAGES.RESULT);
       });
 
       downloadStripBtn.addEventListener('click', downloadStrip);
@@ -1071,16 +975,13 @@
         goToPage(PAGES.INTRO);
       });
 
+      // 페이지 로드 시
       window.addEventListener('beforeunload', () => {
         if (stream) {
           stream.getTracks().forEach((t) => t.stop());
         }
         if (gifUrl) URL.revokeObjectURL(gifUrl);
       });
-
-      // 첫 렌더링 시 프레임 선택 UI만 미리 렌더
-      renderFrameSelector();
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   </body>
 </html>
